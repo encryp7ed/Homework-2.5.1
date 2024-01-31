@@ -1,194 +1,187 @@
-class BoardException(Exception):
-    pass
+import random
+from exceptions import BoardOutException, CountourException, OverlapException, BoardException
+from settings import Dot, Board, Ship
 
 
-# Ошибка выхода за пределы поля
-class BoardOutException(BoardException):
-    def __init__(self, x, y):
-        # self.coordinate = (x, y)
-        super().__init__(f"Incorrect coordinates: ({x}, {y}).")
+# Описание возможностей игроков
+class Player:
+    def __init__(self, name):
+        self.name = name
+        self.board = Board()
+        self.enemy_board = Board()
+
+    def ask(self):
+        pass
+
+    def move(self):
+        # Запрашиваем ход игрока, пока он не промахнется
+        while True:
+            try:
+                target = self.ask()
+                # Метод shot возвращает True или False, поэтому используем его для цикла
+                result = self.enemy_board.shot(target)
+                return result  # Если игрок попал по цели, цикл повторяется
+            except BoardOutException as e:
+                print(f'Error: {e}')
+            except OverlapException as e:
+                print(f'Error: {e}')
 
 
-# Ошибка перекрытия ячеек
-# Возникает, когда игрок пытается выбрать уже открытую ячейку
-# Или заполнить ячейку, которая уже содержит часть коробля
-class OverlapException(BoardException):
-    # добавляем отдельную переменную для сообщения, поскольку
-    # это исключение может возникнуть и при постановке корабля и при выстреле
-    def __init__(self, message, dot):
-        super().__init__(message, f"You have already selected this cell: {dot}.")
-
-class CountourException(BoardException):
-    def __init__(self, dot):
-        super().__init__(f"Cannot place a ship adjacent to another ship at {dot}.")
-
-
-# Ошибка неверного размера корабля
-class InvalidShipSizeException(BoardException):
-    def __init__(self, length):
-        self.length = length
-        super().__init__(f"Incorrect ship length: {self.length}.")
-
-
-# Класс точек на поле
-# Перегруженный метод __eq__ проверяет совпедение точек
-class Dot:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-        self.coordinate = (x, y)
-
-    def __eq__(self, other):
-        if isinstance(other, Dot):
-            return self.coordinate == other.coordinate
-        else:
-            return False
-
-    # Перегружаем метод, чтобы при исключениях выводить не ячейку памяти
-    # а координаты
-    def __str__(self):
-        return f"{self.coordinate}"
-
-    # Поскольку перегружая метод __str__ python помечает объекты как нехэшируемые
-    # Нам нужно реализовать __hash__ для отслеживания контуров
-    def __hash__(self):
-        return hash((self.x, self.y))
-
-
-#  Описание корабля на поле
-class Ship:
-    def __init__(self, length, prow, direction):
-        self.length = length
-        self.prow = prow
-        self.direction = direction
-        # количество жизней изначально равно длине корабля
-        self.health = length
-
-    def dots(self):
-        ship_dots = []
-        x, y = self.prow.x, self.prow.y
-
-        # вычисляем значения остальных точек корабля
-        for _ in range(self.length):
-            ship_dots.append(Dot(x, y))
-            # Заменить horizontal на h и v ?
-            if self.direction == 'horizontal':
-                x += 1
-            else:
-                y += 1
-        return ship_dots
-
-    # перерасчет количества жизней корабля
-    def shoot_at(self, dot):
-        if dot in self.dots():
-            self.health -= 1
-            return True # или возвратить жизни?
-
-
-
-
-# Описание игрового поля
-class Board:
+class AI(Player):
     def __init__(self):
-        # объявляем все клетки поля с помощью генератора списков
-        self.board = [(i, j) for i in range (1, 7) for j in range (1, 7)]
-        self.ships = []
-        self.hid = True
-        self.live_ships = 0
-        # создаем кортеж областей, который не будет содержать повторяющихся элементов
-        self.contour_points = set()
+        super().__init__('AI')  # Установка имени игрока
 
-    def add_ship(self, ship):
-        self.ship = ship.dots()
-
-        # Проверка размера корабля
-        if not 0 < ship.length <= 3:
-            raise InvalidShipSizeException(ship.length)
-
-        # Проверка, что корабль не выходит за границы доски
-        for dot in self.ship:
-            # print(point.x, point.y)
-            if dot.x < 1 or dot.x > 6 or dot.y < 1 or dot.y > 6:
-                raise BoardOutException(dot.x, dot.y)
-
-        # Проверка, что корабль не пересекался с другими кораблями
-        # и не стоит вплотную с другими
-        for existing_ship in self.ships:
-            existing_ship_dots = existing_ship.dots()
-            for dot in self.ship:
-                if dot in existing_ship_dots:
-                    print(dot)
-                    raise OverlapException(f"Cannot add ship. Overlap detected.", dot)
-                elif dot in self.contour_points:
-                    raise CountourException(dot)
+    def ask(self):
+        # генерируем случайные координаты
+        x = random.randint(1, 6)
+        y = random.randint(1, 6)
+        return Dot(x, y)
 
 
-        # Добавление корабля в счетчик кораблей и на доску
-        self.live_ships += 1
-        self.ships.append(ship)
-        # Добавление области вокруг него
-        self.contour(ship)
+class User(Player):
+    def __init__(self):
+        super().__init__('User')
 
-    def out(self, dot):
-        # Если точка выходит за пределы поля, метод возвращает True
-        return not (0 < dot.x <= 6 and 0 < dot.y <= 6)
-
-    def contour(self, ship):
-        # создаем массив соседних точек
-        contour_offsets = [(-1, -1), (-1, 0), (-1, 1),
-                           (0, -1),           (0, 1),
-                           (1, -1),  (1, 0),  (1, 1)]
-
-        for dot in ship.dots():
-            for dx, dy in contour_offsets:
-                adj_dot = Dot(dot.x + dx, dot.y + dy)
-                # добавляем только точки, расположенные внутри доски
-                if 0 < adj_dot.x <= 6 and 0 < adj_dot.y <= 6:
-                    # добавляем элемент во множество.
-                    # если он уже есть в нем, то ничего не добавляется
-                    self.contour_points.add(adj_dot)
-
-    def shot(self, dot):
-        # Проверка был ли сделан выстрел внутри поля
-        if self.out(dot):
-            raise BoardOutException(dot.x, dot.y)
-
-        for ship in self.ships:
-            if dot in ship:
-                print("Hit!")
-                ship.remove(dot)
-                # Проверка разрушился ли корабль полностью
-                if not ship:
-                    print("Ship destroyed!")
-                    self.ships.remove(ship)
-                    self.live_ships -= 1
-                return True
-        # В случае промаха функция не будет возвращать True и продолжит работу
-        # Поэтому дополнительная проверка не нужна
-        print("Miss!")
-        return False
+    def ask(self):
+        coordinates = input('Your turn. Enter the coordinates (column row): ')
+        x, y = map(int, coordinates.split())
+        return Dot(x, y)
 
 
+class Game:
+    ship_lengths = [3, 2, 2, 1, 1, 1, 1]
+
+    def __init__(self):
+        self.user = User()
+        self.user_board = self.user.board
+        self.ai = AI()
+        self.ai_board = self.ai.board
+        # Установка вражеских досок
+        self.user.enemy_board = self.ai.board
+        self.ai.enemy_board = self.user.board
+
+        self.players = [self.user, self.ai]  # Создание списка игроков
+
+    def random_board(self, board):
+        max_attempts = 10000  # Накладываем ограничение, чтобы избежать бесконечного цикла
+
+        while True:  # Цикл для перезапуска генерации доски
+            try:
+                for ship_length in self.ship_lengths:
+                    attempts = 0  # Счетчик попыток установить текущий корабль
+                    placed = False  # Флаг, указывающий, размещен ли корабль
+
+                    while not placed and attempts < max_attempts:
+                        # Выбираем случайное направление корабля
+                        direction = random.choice(['h', 'v'])
+
+                        if direction == 'h':
+                            # выбираем случайную начальную позицию для корабля
+                            start_x = random.randint(1, 7 - ship_length)
+                            start_y = random.randint(1, 6)
+
+                            # Создаем корабль
+                            ship = Ship(ship_length, Dot(start_x, start_y), direction)
+
+                            try:
+                                # Пытаемся добавить корабль на доску
+                                board.add_ship(ship)
+                            except (BoardOutException, OverlapException, CountourException):
+                                attempts += 1  # Увеличиваем счетчик попыток
+                            else:
+                                placed = True  # Корабль успешно поставлен
+                        else:  # direction == 'vertical'
+                            start_x = random.randint(1, 6)
+                            start_y = random.randint(1, 7 - ship_length)
+
+                            ship = Ship(ship_length, Dot(start_x, start_y), direction)
+
+                            try:
+                                board.add_ship(ship)
+                            except (BoardOutException, OverlapException, CountourException):
+                                attempts += 1
+                            else:
+                                placed = True
+                    if attempts == max_attempts:
+                        raise Exception('Failed generation attempt. Try again.')
+                return board
+            except Exception as e:
+                print(f'An error occurred: {e}')
+                retry = input('Do you want to retry? (y/n): ')
+                if retry.lower() != 'y':
+                    raise BoardException('Board generation cancelled by user.')
+                self.user_board.reset_board()
+                self.ai_board.reset_board()  # Обнуление доски ИИ
+
+    @staticmethod
+    def greet():  # Сообщение правил игры и ввода
+        print('Welcome to Battleship game!\n'
+              'The rules of the game:\n'
+              '1) Each player has the following number of ships: '
+              '1 ship per 3 cells, 2 ships per 2 cells, 4 ships per one cell.\n'
+              '2) The playing board is 6x6 in size.\n'
+              '3) To install the ship on the board, use the following format:\n'
+              'column_number row_number direction(h/v)\n'
+              'directions: horizontal (h) and vertical (v)\n'
+              'For Example: 4 2 h\n'
+              "The ship's size is entered automatically from larger to smaller"
+              '4) Each ship must be at least one cell away from the other ships.\n'
+              '5) To make a shot, enter the coordinates: column number and row number.\n'
+              'For Example: 5 1\n'
+              '6) The letter X marks downed ships, the letter T marks misses.\n'
+              '7) If you hit an enemy ship, you continue your turn.\n'
+              '8) The winner is the first one who sinks all enemy ships.\n'
+              )
+
+    def loop(self):
+        self.random_board(self.ai_board)  # Размещение кораблей для ИИ
+
+        while True:
+            for player in self.players:  # цикл по всем игрокам
+                print(f"Player {player.name}'s move.")
+                hit = True
+                while hit:
+                    hit = player.move()  # hit = False если игрок промахнется
+                    if player.name == 'AI':  # Выводим выстрел по вражеской доске пользователем
+                        # Выводим выстрелы, сделанные по доске пользователя
+                        print('Your board:\n', self.user_board.print_board(hid=False))
+                    else:
+                        print('Enemy board:\n', self.ai_board.print_board(hid=True))
+
+                    if player.enemy_board.live_ships == 0:  # Проверка условия победы
+                        print(f'Player {player.name} won!')
+                        return  # Завершение игры, если победитель найден
+
+    def user_place_ships(self):
+        print(self.user_board.print_board())  # Вывод доски перед началом игры для наглядности
+        print('Place your ships on the board.')
+        for ship_size in self.ship_lengths:
+            while True:
+                try:
+                    coordinates = input(f'Enter the start coordinates for a ship of the size {ship_size} '
+                                        f'and its direction (vertical/horizontal): ')
+                    x, y, direction = coordinates.split()
+                    direction = direction.lower()
+                    ship = Ship(ship_size, Dot(int(x), int(y)), direction)  # Разделяем введенные данные по переменным
+                    self.user.board.add_ship(ship)
+                    print("\n", self.user_board.print_board())  # Вывод доски после постановки каждого корабля
+                    break
+                except (BoardOutException, OverlapException, CountourException) as e:
+                    print(f'An error in the placement of the ship: {e}. Try again.')
+
+    def start(self):
+        self.greet()
+        # self.user_place_ships()  # Пользователь размещает корабли
+        while True:  # Цикл для повторения игры
+            self.random_board(self.user_board)
+            self.loop()
+            play_again = input('Do you want to play again? (y/n): ')
+            if play_again.lower() != 'y':
+                break  # Выход из цикла, если пользователь не хочет играть снова
+            self.user.board.reset_board()
+            self.ai.board.reset_board()
+            self.user_place_ships()  # Повторная расстановка кораблей от пользователя
 
 
-
-
-ship = Ship(3, Dot(3,4), 'horizontal')
-ship1 = Ship(1, Dot(1, 1), 'horizontal')
-#ship2 = Ship(3, Dot(1, 1), 'horizontal')
-# This ship will overlap with ship1
-ship3 = Ship(2, Dot(2, 1), 'horizontal')
-
-board = Board()
-board.add_ship(ship)
-board.add_ship(ship1)
-#board.add_ship(ship2)  # No exception, no overlap
-board.add_ship(ship3)
-# def print board():
-# print("  | 1 | 2 | 3| 4 | 5| 6 |")
-# print(f"1 | {X[11]}" | {X[12]} | {X[13]} | {X[14]} | {X[15]} | {X[16]} |)
-# print(f"2 | {X[21]}" | {X[22]} | {X[23]} | {X[24]} | {X[25]} | {X[26]} |)
-# print(f"3 | {X[31]}" | {X[32]} | {X[33]} | {X[34]} | {X[35]} | {X[36]} |)
-# print(f"4 | {X[41]}" | {X[42]} | {X[43]} | {X[44]} | {X[45]} | {X[46]} |)
-# print(f"5 | {X[51]}" | {X[52]} | {X[53]} | {X[54]} | {X[55]} | {X[56]} |)
-# print(f"6 | {X[61]}" | {X[62]} | {X[63]} | {X[64]} | {X[65]} | {X[66]} |)
+new_game = Game()
+new_game.start()
