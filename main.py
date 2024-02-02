@@ -141,11 +141,11 @@ class Game:
                         print(f'Error: {e.args[0]}. Try again.')
                         continue  # Продолжение цикля для повторной попытки
 
-                    if player.name == 'AI':  # Выводим выстрел по вражеской доске пользователем
+                    if player.name == 'AI':
                         # Выводим выстрелы, сделанные по доске пользователя
                         print('Your board:\n', self.user_board.print_board())
-                    else:
-                        print('Enemy board:\n', self.ai_board.print_board(hid=True))  # скрытие вражеской доски
+                    else: # Выводим выстрел по вражеской доске пользователем
+                        print('Enemy board:\n', self.ai_board.print_board(hid=True))  # скрытие вражеских кораблей
 
                     if player.enemy_board.live_ships == 0:  # Проверка условия победы
                         print(f'Player {player.name} won!')
