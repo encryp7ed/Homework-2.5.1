@@ -130,8 +130,6 @@ class Game:
               )
 
     def loop(self):
-        self.random_board(self.ai_board)  # Размещение кораблей для ИИ
-
         while True:
             for player in self.players:  # цикл по всем игрокам
                 print(f"Player {player.name}'s move.")
@@ -179,7 +177,7 @@ class Game:
         self.greet()
         self.user_place_ships()  # Пользователь размещает корабли
         while True:  # Цикл для повторения игры
-            print('Теперь доска ИИ')
+            self.random_board(self.ai_board)  # Размещение кораблей для ИИ
             self.loop()
             play_again = input('Do you want to play again? (yes/no): ')
             if play_again.lower() != 'yes':
