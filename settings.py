@@ -55,7 +55,7 @@ class Board:
         self.hits = []  # список точек попаданий
         self.misses = []  # список точек промахов
         self.live_ships = 0
-        self.hid = False  # агрумент видимости доски
+        self.hid = False  # параметр видимости доски
         # создаем кортеж областей, который не будет содержать повторяющихся элементов
         self.contour_points = set()
 
