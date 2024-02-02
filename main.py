@@ -63,7 +63,7 @@ class Game:
         self.players = [self.user, self.ai]  # Создание списка игроков
 
     def random_board(self, board):
-        MAX_ATTEMPS = 10000  # Накладываем ограничение, чтобы избежать бесконечного цикла
+        MAX_ATTEMPTS = 10000  # Накладываем ограничение, чтобы избежать бесконечного цикла
 
         while True:  # Цикл для перезапуска генерации доски
             board.reset_board()  # Сброс доски перед каждой попыткой
@@ -71,7 +71,7 @@ class Game:
                 for ship_length in self.ship_lengths:
                     attempts = 0  # Счетчик попыток установить текущий корабль
 
-                    while attempts < MAX_ATTEMPS:
+                    while attempts < MAX_ATTEMPTS:
                         # Выбираем случайное направление корабля
                         direction = random.choice(['h', 'v'])
 
@@ -99,12 +99,10 @@ class Game:
                             else:
                                 attempts += 1
 
-                    if attempts == MAX_ATTEMPS:
+                    if attempts == MAX_ATTEMPTS:
                         raise Exception('Failed generation attempt. Try again.')
-
-                print(board.print_board())
-
                 return board
+
             except Exception as e:
                 print(f'An error occurred: {e}')
                 retry = input('Do you want to retry? (yes/no): ')
@@ -170,7 +168,7 @@ class Game:
                     if direction not in ['v', 'h']:
                         raise DirectionException(direction)
                     ship = Ship(ship_size, Dot(int(x), int(y)), direction)  # Разделяем введенные данные по переменным
-                    if self.user.board.add_ship(ship): # Если корабль успешно поставлен
+                    if self.user.board.add_ship(ship):  # Если корабль успешно поставлен
                         self.ship_lengths.remove(ship_size)  # Обновление списка оставшихся кораблей
                         print("\n", self.user_board.print_board())  # Вывод доски после постановки каждого корабля
                         break
@@ -179,9 +177,8 @@ class Game:
 
     def start(self):
         self.greet()
-        # self.user_place_ships()  # Пользователь размещает корабли
+        self.user_place_ships()  # Пользователь размещает корабли
         while True:  # Цикл для повторения игры
-            self.random_board(self.user_board)
             print('Теперь доска ИИ')
             self.loop()
             play_again = input('Do you want to play again? (yes/no): ')
