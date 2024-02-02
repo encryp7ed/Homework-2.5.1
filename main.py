@@ -1,5 +1,5 @@
 import random
-from exceptions import BoardOutException, CountourException, OverlapException, BoardException
+from exceptions import BoardOutException, OverlapException, BoardException, DirectionException
 from settings import Dot, Board, Ship
 
 
@@ -63,15 +63,15 @@ class Game:
         self.players = [self.user, self.ai]  # Создание списка игроков
 
     def random_board(self, board):
-        max_attempts = 10000  # Накладываем ограничение, чтобы избежать бесконечного цикла
+        MAX_ATTEMPS = 10000  # Накладываем ограничение, чтобы избежать бесконечного цикла
 
         while True:  # Цикл для перезапуска генерации доски
+            board.reset_board()  # Сброс доски перед каждой попыткой
             try:
                 for ship_length in self.ship_lengths:
                     attempts = 0  # Счетчик попыток установить текущий корабль
-                    placed = False  # Флаг, указывающий, размещен ли корабль
 
-                    while not placed and attempts < max_attempts:
+                    while attempts < MAX_ATTEMPS:
                         # Выбираем случайное направление корабля
                         direction = random.choice(['h', 'v'])
 
@@ -83,35 +83,33 @@ class Game:
                             # Создаем корабль
                             ship = Ship(ship_length, Dot(start_x, start_y), direction)
 
-                            try:
-                                # Пытаемся добавить корабль на доску
-                                board.add_ship(ship)
-                            except (BoardOutException, OverlapException, CountourException):
-                                attempts += 1  # Увеличиваем счетчик попыток
+                            if board.add_ship(ship):  # Если корабль успешно поставлен (метод возвращает True)
+                                break  # выходим из цикла
                             else:
-                                placed = True  # Корабль успешно поставлен
+                                attempts += 1  # Увеличиваем счетчик попыток
+
                         else:  # direction == 'vertical'
                             start_x = random.randint(1, 6)
                             start_y = random.randint(1, 7 - ship_length)
 
                             ship = Ship(ship_length, Dot(start_x, start_y), direction)
 
-                            try:
-                                board.add_ship(ship)
-                            except (BoardOutException, OverlapException, CountourException):
-                                attempts += 1
+                            if board.add_ship(ship):
+                                break
                             else:
-                                placed = True
-                    if attempts == max_attempts:
+                                attempts += 1
+
+                    if attempts == MAX_ATTEMPS:
                         raise Exception('Failed generation attempt. Try again.')
+
+                print(board.print_board())
+
                 return board
             except Exception as e:
                 print(f'An error occurred: {e}')
-                retry = input('Do you want to retry? (y/n): ')
-                if retry.lower() != 'y':
+                retry = input('Do you want to retry? (yes/no): ')
+                if retry.lower() != 'yes':
                     raise BoardException('Board generation cancelled by user.')
-                self.user_board.reset_board()
-                self.ai_board.reset_board()  # Обнуление доски ИИ
 
     @staticmethod
     def greet():  # Сообщение правил игры и ввода
@@ -141,12 +139,17 @@ class Game:
                 print(f"Player {player.name}'s move.")
                 hit = True
                 while hit:
-                    hit = player.move()  # hit = False если игрок промахнется
+                    try:
+                        hit = player.move()  # hit = False если игрок промахнется
+                    except (ValueError, BoardOutException, OverlapException) as e:
+                        print(f'Error: {e.args[0]}. Try again.')
+                        continue  # Продолжение цикля для повторной попытки
+
                     if player.name == 'AI':  # Выводим выстрел по вражеской доске пользователем
                         # Выводим выстрелы, сделанные по доске пользователя
-                        print('Your board:\n', self.user_board.print_board(hid=False))
+                        print('Your board:\n', self.user_board.print_board())
                     else:
-                        print('Enemy board:\n', self.ai_board.print_board(hid=True))
+                        print('Enemy board:\n', self.ai_board.print_board(hid=True))  # скрытие вражеской доски
 
                     if player.enemy_board.live_ships == 0:  # Проверка условия победы
                         print(f'Player {player.name} won!')
@@ -155,18 +158,23 @@ class Game:
     def user_place_ships(self):
         print(self.user_board.print_board())  # Вывод доски перед началом игры для наглядности
         print('Place your ships on the board.')
-        for ship_size in self.ship_lengths:
+        for ship_size in self.ship_lengths.copy():  # Создание копии для прохода цикла
             while True:
+                # Вывод общего списка непоставленных кораблей
+                print(f'Ships remaining to place: {self.ship_lengths}')
                 try:
                     coordinates = input(f'Enter the start coordinates for a ship of the size {ship_size} '
-                                        f'and its direction (vertical/horizontal): ')
+                                        f'and its direction (v/h): ')
                     x, y, direction = coordinates.split()
                     direction = direction.lower()
+                    if direction not in ['v', 'h']:
+                        raise DirectionException(direction)
                     ship = Ship(ship_size, Dot(int(x), int(y)), direction)  # Разделяем введенные данные по переменным
-                    self.user.board.add_ship(ship)
-                    print("\n", self.user_board.print_board())  # Вывод доски после постановки каждого корабля
-                    break
-                except (BoardOutException, OverlapException, CountourException) as e:
+                    if self.user.board.add_ship(ship): # Если корабль успешно поставлен
+                        self.ship_lengths.remove(ship_size)  # Обновление списка оставшихся кораблей
+                        print("\n", self.user_board.print_board())  # Вывод доски после постановки каждого корабля
+                        break
+                except Exception as e:
                     print(f'An error in the placement of the ship: {e}. Try again.')
 
     def start(self):
@@ -174,9 +182,11 @@ class Game:
         # self.user_place_ships()  # Пользователь размещает корабли
         while True:  # Цикл для повторения игры
             self.random_board(self.user_board)
+            print('Теперь доска ИИ')
             self.loop()
-            play_again = input('Do you want to play again? (y/n): ')
-            if play_again.lower() != 'y':
+            play_again = input('Do you want to play again? (yes/no): ')
+            if play_again.lower() != 'yes':
+                print('The game is over.')
                 break  # Выход из цикла, если пользователь не хочет играть снова
             self.user.board.reset_board()
             self.ai.board.reset_board()
